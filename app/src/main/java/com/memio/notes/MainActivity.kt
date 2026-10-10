@@ -69,6 +69,9 @@ class MainActivity : Activity() {
             text = "＋  Nueva nota"
             setOnClickListener { editNote(-1) }
         }
+        create.isAllCaps = false
+        create.setTextColor(Color.WHITE)
+        create.background = getDrawable(R.drawable.rounded_button)
         root.addView(create)
         val scroll = ScrollView(this)
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -87,6 +90,7 @@ class MainActivity : Activity() {
                 setPadding(dp(18), dp(16), dp(18), dp(12))
                 setBackgroundColor(MemoWidget.colors[color])
                 elevation = dp(3).toFloat()
+                background = android.graphics.drawable.GradientDrawable().apply { setColor(MemoWidget.colors[color]); cornerRadius = dp(18).toFloat() }
             }
             card.addView(label(note.optString("text").ifBlank { "Nota vacía" }, 19f).apply {
                 minHeight = dp(65)
@@ -123,6 +127,7 @@ class MainActivity : Activity() {
             }, LinearLayout.LayoutParams(0, dp(48), 1f))
             card.addView(actions)
             card.addView(Button(this).apply {
+                isAllCaps = false
                 text = "📌 Agregar a inicio"
                 setOnClickListener { pinNote(note.optString("id")) }
             })

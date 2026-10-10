@@ -11,7 +11,10 @@ import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.widget.*
 import org.json.JSONArray
 import org.json.JSONObject
@@ -26,11 +29,40 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = cream
         window.navigationBarColor = cream
-        window.decorView.systemUiVisibility = android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+            window.insetsController?.setSystemBarsAppearance(light, light)
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        }
         widgetId = intent.getIntExtra("widget_id", AppWidgetManager.INVALID_APPWIDGET_ID)
         showHome()
         if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            window.decorView.post { chooseNote(widgetId) }
+            val linked = prefs.getString("linked_$widgetId", null)
+            window.decorView.post {
+                if (linked != null && indexOf(notes(), linked) >= 0) editNote(linked, widgetId) else chooseNote(widgetId)
+            }
+        }
+    }
+
+    private fun indexOf(notes: JSONArray, id: String): Int {
+        for (i in 0 until notes.length()) if (notes.optJSONObject(i)?.optString("id") == id) return i
+        return -1
+    }
+
+    /** Desde Android 15 la app se dibuja de borde a borde: dejamos espacio para las barras del sistema. */
+    private fun applySystemBarPadding(root: View, left: Int, top: Int, right: Int, bottom: Int) {
+        root.setOnApplyWindowInsetsListener { v, insets ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val bars = insets.getInsets(WindowInsets.Type.systemBars())
+                v.setPadding(left + bars.left, top + bars.top, right + bars.right, bottom + bars.bottom)
+            } else {
+                @Suppress("DEPRECATION")
+                v.setPadding(left + insets.systemWindowInsetLeft, top + insets.systemWindowInsetTop,
+                    right + insets.systemWindowInsetRight, bottom + insets.systemWindowInsetBottom)
+            }
+            insets
         }
     }
 
@@ -41,7 +73,7 @@ class MainActivity : Activity() {
     private fun save(notes: JSONArray) {
         prefs.edit().putString("all_notes", notes.toString()).apply()
         val manager = AppWidgetManager.getInstance(this)
-        val component = android.content.ComponentName(this, MemoWidget::class.java)
+        val component = ComponentName(this, MemoWidget::class.java)
         manager.getAppWidgetIds(component).forEach { MemoWidget.update(this, manager, it) }
     }
 
@@ -58,16 +90,16 @@ class MainActivity : Activity() {
     private fun showHome() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(24), dp(20), dp(16))
             setBackgroundColor(cream)
         }
+        applySystemBarPadding(root, dp(20), dp(24), dp(20), dp(16))
         root.addView(label("Memio ✨", 30f, true))
         root.addView(label("Tus ideas, siempre a la vista", 15f).apply {
             setPadding(0, dp(6), 0, dp(18))
         })
         val create = Button(this).apply {
             text = "＋  Nueva nota"
-            setOnClickListener { editNote(-1) }
+            setOnClickListener { editNote(null) }
         }
         create.isAllCaps = false
         create.setTextColor(Color.WHITE)
@@ -83,23 +115,23 @@ class MainActivity : Activity() {
         }
         for (i in 0 until all.length()) {
             val note = all.optJSONObject(i) ?: continue
-            val index = i
+            val noteId = note.optString("id")
             val color = note.optInt("color", 0).coerceIn(MemoWidget.colors.indices)
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(18), dp(16), dp(18), dp(12))
-                setBackgroundColor(MemoWidget.colors[color])
                 elevation = dp(3).toFloat()
                 background = android.graphics.drawable.GradientDrawable().apply { setColor(MemoWidget.colors[color]); cornerRadius = dp(18).toFloat() }
             }
             card.addView(label(note.optString("text").ifBlank { "Nota vacía" }, 19f).apply {
                 minHeight = dp(65)
-                setOnClickListener { editNote(index) }
+                gravity = Gravity.CENTER
+                setOnClickListener { editNote(noteId) }
             })
             val actions = LinearLayout(this)
             actions.addView(Button(this).apply {
                 text = "Editar"
-                setOnClickListener { editNote(index) }
+                setOnClickListener { editNote(noteId) }
             }, LinearLayout.LayoutParams(0, dp(48), 1f))
             actions.addView(Button(this).apply {
                 text = "Eliminar"
@@ -107,20 +139,7 @@ class MainActivity : Activity() {
                     AlertDialog.Builder(this@MainActivity).setMessage("¿Eliminar esta nota?")
                         .setNegativeButton("Cancelar", null)
                         .setPositiveButton("Eliminar") { _, _ ->
-                            val updated = notes()
-                            val removed = updated.optJSONObject(index)?.optString("id")
-                            updated.remove(index)
-                            save(updated)
-                            if (removed != null) {
-                                val manager = AppWidgetManager.getInstance(this@MainActivity)
-                                val component = android.content.ComponentName(this@MainActivity, MemoWidget::class.java)
-                                manager.getAppWidgetIds(component).forEach { id ->
-                                    if (prefs.getString("linked_$id", null) == removed) {
-                                        prefs.edit().remove("linked_$id").apply()
-                                        MemoWidget.update(this@MainActivity, manager, id)
-                                    }
-                                }
-                            }
+                            deleteNote(noteId)
                             showHome()
                         }.show()
                 }
@@ -129,7 +148,7 @@ class MainActivity : Activity() {
             card.addView(Button(this).apply {
                 isAllCaps = false
                 text = "📌 Agregar a inicio"
-                setOnClickListener { pinNote(note.optString("id")) }
+                setOnClickListener { pinNote(noteId) }
             })
             list.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 setMargins(0, dp(10), 0, dp(10))
@@ -141,8 +160,24 @@ class MainActivity : Activity() {
         setContentView(root)
     }
 
-    private fun editNote(index: Int) {
-        val existing = if (index >= 0) notes().optJSONObject(index) else null
+    private fun deleteNote(noteId: String) {
+        val updated = notes()
+        val index = indexOf(updated, noteId)
+        if (index < 0) return
+        updated.remove(index)
+        val manager = AppWidgetManager.getInstance(this)
+        manager.getAppWidgetIds(ComponentName(this, MemoWidget::class.java)).forEach { id ->
+            if (prefs.getString("linked_$id", null) == noteId) prefs.edit().remove("linked_$id").apply()
+        }
+        save(updated)
+    }
+
+    /**
+     * Abre el editor de la nota con ese [noteId], o de una nota nueva si es null.
+     * Si se abre desde un widget ([fromWidget]), ofrece cambiar la nota que muestra.
+     */
+    private fun editNote(noteId: String?, fromWidget: Int = AppWidgetManager.INVALID_APPWIDGET_ID) {
+        val existing = noteId?.let { id -> notes().let { it.optJSONObject(indexOf(it, id)) } }
         var chosen = (existing?.optInt("color", 0) ?: 0).coerceIn(MemoWidget.colors.indices)
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -169,8 +204,8 @@ class MainActivity : Activity() {
             }, LinearLayout.LayoutParams(0, dp(64), 1f))
         }
         layout.addView(palette)
-        AlertDialog.Builder(this)
-            .setTitle(if (index < 0) "Nueva nota" else "Editar nota")
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(if (existing == null) "Nueva nota" else "Editar nota")
             .setView(layout)
             .setNegativeButton("Cancelar", null)
             .setPositiveButton("Guardar") { _, _ ->
@@ -179,10 +214,16 @@ class MainActivity : Activity() {
                     .put("id", existing?.optString("id") ?: java.util.UUID.randomUUID().toString())
                     .put("text", input.text.toString())
                     .put("color", chosen)
+                // Se busca por id al guardar: si la nota se borró mientras tanto, se guarda como nueva.
+                val index = existing?.let { indexOf(updated, it.optString("id")) } ?: -1
                 if (index < 0) updated.put(note) else updated.put(index, note)
                 save(updated)
                 showHome()
-            }.show()
+            }
+        if (existing != null && fromWidget != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            dialog.setNeutralButton("Cambiar nota") { _, _ -> chooseNote(fromWidget) }
+        }
+        dialog.show()
     }
 
     private fun pinNote(noteId: String) {
@@ -207,7 +248,7 @@ class MainActivity : Activity() {
         if (all.length() == 0) {
             AlertDialog.Builder(this).setTitle("Primero creá una nota")
                 .setMessage("Creá una nota desde Memio y después tocá el widget para elegirla.")
-                .setPositiveButton("Crear nota") { _, _ -> editNote(-1) }
+                .setPositiveButton("Crear nota") { _, _ -> editNote(null) }
                 .setNegativeButton("Después", null).show()
             return
         }

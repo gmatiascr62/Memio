@@ -193,7 +193,7 @@ class MainActivity : Activity() {
         val callback = PendingIntent.getBroadcast(this, noteId.hashCode(), callbackIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
         val provider = ComponentName(this, MemoWidget::class.java)
-        val accepted = manager.requestPinAppWidget(provider, null, callback.intentSender)
+        val accepted = manager.requestPinAppWidget(provider, null, callback)
         if (!accepted) Toast.makeText(this, "No se pudo solicitar el widget", Toast.LENGTH_LONG).show()
     }
 

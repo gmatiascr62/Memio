@@ -1,0 +1,1 @@
+<TextView xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/note_text" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="18dp" android:gravity="top|start" android:text="Tocá para escribir ✎" android:textColor="#382C19" android:textSize="20sp" android:background="#FFF19A"/>

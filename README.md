@@ -5,7 +5,7 @@ Notas adhesivas para Android que podés fijar como widget en la pantalla de inic
 ## Funciones
 
 - Crear, editar y eliminar notas con 5 colores.
-- Fijar cualquier nota como widget desde la app («📌 Agregar a inicio»).
+- Fijar cualquier nota como widget desde la app («📌 Fijar»).
 - Widgets redimensionables desde 1x1; el texto se centra y se achica para entrar.
 - Tocar un widget abre su nota para editarla, con la opción «Cambiar nota».
 

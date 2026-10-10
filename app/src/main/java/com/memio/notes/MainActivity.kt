@@ -8,7 +8,10 @@ import android.os.Build
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -22,6 +25,8 @@ import org.json.JSONObject
 class MainActivity : Activity() {
     private val cream = Color.rgb(255, 250, 235)
     private val ink = Color.rgb(66, 48, 32)
+    private val cocoa = Color.rgb(109, 75, 53)
+    private val danger = Color.rgb(170, 58, 48)
     private val prefs by lazy { getSharedPreferences("notes", Context.MODE_PRIVATE) }
     private var widgetId = AppWidgetManager.INVALID_APPWIDGET_ID
 
@@ -89,6 +94,26 @@ class MainActivity : Activity() {
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
+    /** Botón redondeado y plano; por defecto, blanco translúcido para que tome el color de la nota. */
+    private fun pillButton(text: String, textColor: Int, fill: Int = Color.argb(115, 255, 255, 255),
+                           size: Float = 15f, radius: Int = 14, onClick: () -> Unit): TextView =
+        TextView(this).apply {
+            this.text = text
+            textSize = size
+            setTextColor(textColor)
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            gravity = Gravity.CENTER
+            maxLines = 1
+            isClickable = true
+            isFocusable = true
+            val shape = GradientDrawable().apply { setColor(fill); cornerRadius = dp(radius).toFloat() }
+            background = RippleDrawable(ColorStateList.valueOf(Color.argb(50, 66, 48, 32)), shape, null)
+            setOnClickListener { onClick() }
+        }
+
+    private fun pillParams(start: Int = 0, end: Int = 0) =
+        LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginStart = dp(start); marginEnd = dp(end) }
+
     private fun showHome() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -99,14 +124,8 @@ class MainActivity : Activity() {
         root.addView(label("Tus ideas, siempre a la vista", 15f).apply {
             setPadding(0, dp(6), 0, dp(18))
         })
-        val create = Button(this).apply {
-            text = "＋  Nueva nota"
-            setOnClickListener { editNote(null) }
-        }
-        create.isAllCaps = false
-        create.setTextColor(Color.WHITE)
-        create.background = getDrawable(R.drawable.rounded_button)
-        root.addView(create)
+        root.addView(pillButton("＋  Nueva nota", Color.WHITE, fill = cocoa, size = 17f, radius = 16) { editNote(null) },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)))
         val scroll = ScrollView(this)
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val all = notes()
@@ -123,42 +142,32 @@ class MainActivity : Activity() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(18), dp(16), dp(18), dp(12))
                 elevation = dp(3).toFloat()
-                background = android.graphics.drawable.GradientDrawable().apply { setColor(MemoWidget.colors[color]); cornerRadius = dp(18).toFloat() }
+                background = GradientDrawable().apply { setColor(MemoWidget.colors[color]); cornerRadius = dp(18).toFloat() }
             }
             card.addView(label(note.optString("text").ifBlank { "Nota vacía" }, 19f).apply {
                 minHeight = dp(65)
                 gravity = Gravity.CENTER
                 setOnClickListener { editNote(noteId) }
             })
-            val actions = LinearLayout(this)
-            actions.addView(Button(this).apply {
-                text = "Editar"
-                setOnClickListener { editNote(noteId) }
-            }, LinearLayout.LayoutParams(0, dp(48), 1f))
-            actions.addView(Button(this).apply {
-                text = "Eliminar"
-                setOnClickListener {
-                    AlertDialog.Builder(this@MainActivity).setMessage("¿Eliminar esta nota?")
-                        .setNegativeButton("Cancelar", null)
-                        .setPositiveButton("Eliminar") { _, _ ->
-                            deleteNote(noteId)
-                            showHome()
-                        }.show()
-                }
-            }, LinearLayout.LayoutParams(0, dp(48), 1f))
+            val actions = LinearLayout(this).apply { setPadding(0, dp(8), 0, 0) }
+            actions.addView(pillButton("✎  Editar", ink) { editNote(noteId) }, pillParams(end = 6))
+            actions.addView(pillButton("📌  Fijar", ink) { pinNote(noteId) }, pillParams(start = 3, end = 3))
+            actions.addView(pillButton("🗑  Borrar", danger) {
+                AlertDialog.Builder(this@MainActivity).setMessage("¿Borrar esta nota?")
+                    .setNegativeButton("Cancelar", null)
+                    .setPositiveButton("Borrar") { _, _ ->
+                        deleteNote(noteId)
+                        showHome()
+                    }.show()
+            }, pillParams(start = 6))
             card.addView(actions)
-            card.addView(Button(this).apply {
-                isAllCaps = false
-                text = "📌 Agregar a inicio"
-                setOnClickListener { pinNote(noteId) }
-            })
             list.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 setMargins(0, dp(10), 0, dp(10))
             })
         }
         scroll.addView(list)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        root.addView(label("Tocá «Agregar a inicio» en cualquier nota para colocarla como widget.", 13f))
+        root.addView(label("Tocá «📌 Fijar» en cualquier nota para colocarla como widget.", 13f))
         setContentView(root)
     }
 

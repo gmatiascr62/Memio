@@ -2,6 +2,9 @@ package com.memio.notes
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.PendingIntent
+import android.content.ComponentName
+import android.os.Build
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
@@ -119,13 +122,17 @@ class MainActivity : Activity() {
                 }
             }, LinearLayout.LayoutParams(0, dp(48), 1f))
             card.addView(actions)
+            card.addView(Button(this).apply {
+                text = "📌 Agregar a inicio"
+                setOnClickListener { pinNote(note.optString("id")) }
+            })
             list.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 setMargins(0, dp(10), 0, dp(10))
             })
         }
         scroll.addView(list)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        root.addView(label("Para poner una nota en tu inicio: mantené presionada la pantalla de inicio → Widgets → Memio. Tocá el widget y elegí una nota.", 13f))
+        root.addView(label("Tocá «Agregar a inicio» en cualquier nota para colocarla como widget.", 13f))
         setContentView(root)
     }
 
@@ -171,6 +178,23 @@ class MainActivity : Activity() {
                 save(updated)
                 showHome()
             }.show()
+    }
+
+    private fun pinNote(noteId: String) {
+        val manager = AppWidgetManager.getInstance(this)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || !manager.isRequestPinAppWidgetSupported) {
+            AlertDialog.Builder(this).setMessage("Tu pantalla de inicio no permite agregar widgets desde la app. Mantené presionado un espacio vacío → Widgets → Memio.")
+                .setPositiveButton("Entendido", null).show()
+            return
+        }
+        val callbackIntent = Intent(this, PinWidgetReceiver::class.java)
+            .setAction("com.memio.notes.PIN_WIDGET")
+            .putExtra("note_id", noteId)
+        val callback = PendingIntent.getBroadcast(this, noteId.hashCode(), callbackIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
+        val provider = ComponentName(this, MemoWidget::class.java)
+        val accepted = manager.requestPinAppWidget(provider, null, callback.intentSender)
+        if (!accepted) Toast.makeText(this, "No se pudo solicitar el widget", Toast.LENGTH_LONG).show()
     }
 
     private fun chooseNote(id: Int) {

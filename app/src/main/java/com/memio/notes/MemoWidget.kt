@@ -34,7 +34,7 @@ class MemoWidget : AppWidgetProvider() {
             }
             val views = RemoteViews(context.packageName, R.layout.widget_note)
             views.setTextViewText(R.id.note_text, text)
-            views.setInt(R.id.note_text, "setBackgroundColor", colors[color])
+            views.setInt(R.id.note_text, "setBackgroundResource", intArrayOf(R.drawable.note_color_0, R.drawable.note_color_1, R.drawable.note_color_2, R.drawable.note_color_3, R.drawable.note_color_4)[color])
             val intent = Intent(context, MainActivity::class.java)
                 .putExtra("widget_id", id)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
